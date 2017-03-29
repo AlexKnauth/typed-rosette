@@ -11,11 +11,15 @@
  "rosette/types.rkt"
  ;; import base forms
  (rename-in "rosette/base-forms.rkt" [#%app app])
+ "rosette/struct.rkt"
+ "rosette/generic-interfaces.rkt"
  ;; base lang
  (prefix-in ro: (combine-in rosette rosette/lib/synthax))
  (rename-in "rosette-util.rkt" [bitvector? lifted-bitvector?]))
 
 (provide : define λ apply ann begin
+         struct
+         define-generics gen:custom-write gen:equal+hash
          (rename-out [app #%app]
                      [ro:#%module-begin #%module-begin] 
                      [λ lambda])
@@ -144,53 +148,6 @@
 
 ;; ---------------------------------
 ;; Racket forms
-
-;; TODO: get subtyping to work for struct-generated types?
-;; TODO: handle mutable structs properly
-(define-typed-syntax struct #:datum-literals (:)
-  [(_ name:id (x:id ...) ~! . rst) ≫
-   #:fail-when #t "Missing type annotations for fields"
-   --------
-   [_ ≻ (ro:struct name (x ...) . rst)]]
-  [(_ name:id ([x:id : ty:type] ...) . kws) ≫
-   #:fail-unless (id-lower-case? #'name)
-                 (format "Expected lowercase struct name, given ~a" #'name)
-   #:with name* (generate-temporary #'name)
-   #:with Name (id-upcase #'name)
-   #:with CName (format-id #'name "C~a" #'Name)
-   #:with TyOut #'(Name ty ...)
-   #:with CTyOut #'(CName ty ...)
-   #:with (name-x ...) (stx-map (lambda (f) (format-id #'name "~a-~a" #'name f)) #'(x ...))
-   #:with (name-x* ...) (stx-map (lambda (f) (format-id #'name* "~a-~a" #'name* f)) #'(x ...))
-   #:with name? (format-id #'name "~a?" #'name)
-   #:with name?* (format-id #'name* "~a?" #'name*)
-   --------
-   [_ ≻ (ro:begin
-          (ro:struct name* (x ...) . kws)
-          (define-type-constructor CName #:arity = #,(stx-length #'(x ...)))
-          (define-named-type-alias (Name x ...) (U (CName x ...)))
-          (define-syntax name   ; constructor
-            (make-variable-like-transformer 
-             (assign-type #'name* #'(C→ ty ... CTyOut))))
-          (define-syntax name?  ; predicate
-            (make-variable-like-transformer 
-             (assign-type #'name?* #'(C→ Any Bool))))
-          (define-syntax name-x ; accessors
-            (make-variable-like-transformer 
-             (assign-type #'name-x* #'(C→ TyOut ty)))) ...)]])
-
-;; TODO: add type rules for generics
-(define-typed-syntax define-generics #:datum-literals (: ->)
-  [(_ name:id (f:id x:id ... -> ty-out)) ≫
-   #:with app-f (format-id #'f "apply-~a" #'f)
-   --------
-   [_ ≻ (ro:begin
-         (ro:define-generics name (f x ...))
-         (define-syntax app-f ; tmp workaround: each gen fn has its own apply
-           (syntax-parser
-             [(_ . es)
-              #:with es+ (stx-map expand/df #'es)
-              (assign-type #'(ro:#%app f . es+) #'ty-out)])))]])
 
 ;; ---------------------------------
 ;; quote
@@ -887,6 +844,36 @@
                     [pc : (C→ Bool)]
                     [asserts : (C→ CAsserts)]
                     [clear-asserts! : (C→ CUnit)]))
+
+
+;; ---------------------------------
+;; Formatting Values as Strings or Output
+
+(begin-for-syntax
+  ;; format-string-matches? : String [Listof Any] -> Bool
+  (define (format-string-matches? fmt vals)
+    (with-handlers ([exn:fail? (λ (e) #false)])
+      (apply format fmt vals)
+      #true)))
+
+(define-typed-syntax format
+  [(_ fmt:str v:expr ...) ≫
+   #:fail-unless
+   (format-string-matches? (syntax-e #'fmt) (syntax->datum #'[v ...]))
+   "wrong number of arguments for format string"
+   [⊢ [v ≫ v- ⇐ Any] ...]
+   --------
+   [⊢ (ro:format fmt v- ...) ⇒ CString]])
+
+(define-typed-syntax fprintf
+  [(_ out:expr fmt:str v:expr ...) ≫
+   [⊢ out ≫ out- ⇐ COutputPort]
+   #:fail-unless
+   (format-string-matches? (syntax-e #'fmt) (syntax->datum #'[v ...]))
+   "wrong number of arguments for format string"
+   [⊢ [v ≫ v- ⇐ Any] ...]
+   --------
+   [⊢ (ro:fprintf out- fmt v- ...) ⇒ CUnit]])
 
 ;; ---------------------------------
 ;; more built-in ops

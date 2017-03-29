@@ -7,6 +7,7 @@
     "base"
     "rosette"
     "turnstile"
+    "syntax-classes-lib"
     "rackunit-lib"
     ))
 
