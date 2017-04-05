@@ -88,7 +88,8 @@
            [List CListof] [~List ~CListof])
          (prefix-in ro: rosette)
          (prefix-in ro: rosette/lib/synthax)
-         (rename-in "../rosette-util.rkt" [bitvector? lifted-bitvector?]))
+         (rename-in "../rosette-util.rkt" [bitvector? lifted-bitvector?])
+         "concrete-predicate.rkt")
 
 ;; ---------------------------------
 ;; Concrete and Symbolic union types
@@ -322,11 +323,11 @@
 ;; ---------------------------------
 ;; Concrete types
 
-(define-named-type-alias CBool (CU CFalse CTrue))
+(define-named-type-alias CBool (add-predm (CU CFalse CTrue) concrete-boolean?))
 
-(define-named-type-alias CNat (CU CZero CPosInt))
-(define-named-type-alias CInt (CU CNegInt CNat))
-(define-named-type-alias CNum (CU CFloat CInt))
+(define-named-type-alias CNat (add-predm (CU CZero CPosInt) concrete-nonnegative-integer?))
+(define-named-type-alias CInt (add-predm (CU CNegInt CNat) concrete-integer?))
+(define-named-type-alias CNum (add-predm (CU CFloat CInt) concrete-real?))
 
 (begin-for-syntax
   (define (concrete-type-solvable? τ)
