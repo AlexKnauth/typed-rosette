@@ -1114,9 +1114,7 @@
   [_:id ≫
    --------
    [⊢ [_ ≫ ro:&& ⇒ :
-           (Ccase-> (C→ Bool)
-                    (C→ Bool Bool)
-                    (C→ Bool Bool Bool))]]]
+         (C→* [] [] #:rest (Listof Bool) Bool)]]]
   [(_ e ...) ≫
    [⊢ [e ≫ e- ⇐ : Bool] ...]
    --------
@@ -1125,9 +1123,7 @@
   [_:id ≫
    --------
    [⊢ [_ ≫ ro:|| ⇒ :
-           (Ccase-> (C→ Bool)
-                    (C→ Bool Bool)
-                    (C→ Bool Bool Bool))]]]
+           (C→* [] [] #:rest (Listof Bool) Bool)]]]
   [(_ e ...) ≫
    [⊢ [e ≫ e- ⇐ : Bool] ...]
    --------

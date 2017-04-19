@@ -143,7 +143,7 @@
      ;; canonicalize by expanding to U*, with only (sorted and pruned) leaf tys
      #:with ((~or (~U* ty1- ...) (~CU* ty2- ...) ty3-) ...) (stx-map (current-type-eval) #'tys)
      #:with tys- (prune+sort #'(ty1- ... ... ty2- ... ... ty3- ...))
-     #'(U* . tys-)]))
+     (syntax/loc this-syntax (U* . tys-))]))
 
 ;; user-facing symbolic Term constructor: check solvable
 (define-syntax-parser Term
@@ -280,7 +280,7 @@
      #:with tys+ (stx-map (current-type-eval) #'tys)
      #:fail-unless (stx-andmap concrete-function-type? #'tys+)
                    "Ccase-> require concrete function types"
-     #'(Ccase->* . tys+)]))
+     (syntax/loc this-syntax (Ccase->* . tys+))]))
 
 
 ;; TODO: What should case-> do when given symbolic function
