@@ -16,6 +16,8 @@
          (for-syntax concrete-function-type?
                      ~C→ ~C→* ~Ccase->
                      C→? Ccase->?)
+         ;; Propositions for Occurrence typing
+         @
          ;; Parameters
          CParamof ; TODO: symbolic Param not supported yet
          ;; List types
@@ -228,6 +230,16 @@
 
 (define-internal-type-constructor KwArg) ; #:arity = 2
 
+(define-internal-type-constructor Result) ; #:arity = 3
+(define-internal-type-constructor Prop/And) ; #:arity <= 0
+(define-internal-type-constructor Prop/IndexType) ; #:arity = 2
+
+(define-syntax-parser Prop/Top [:id #'(Prop/And-)])
+(define-syntax-parser @
+  #:datum-literals [:]
+  [(_ i:nat : τ:type)
+   #'(Prop/IndexType- 'i τ.norm)])
+
 (begin-for-syntax
   (begin-for-syntax
     (define-syntax-class expr*
@@ -256,7 +268,7 @@
            (~and opt-kws
                  (~parse [pat_kw ...] (convert-opt-kws #'opt-kws)))
            (~NoRestArg)
-           pat_out)]
+           (~Result pat_out _ _))]
        [(_ [pat_in:expr* ...] [pat_kw:expr ...] #:rest pat_rst:expr pat_out:expr*)
         #:with opt-kws (generate-temporary 'opt-kws)
         #'(~C→*/internal
@@ -264,7 +276,7 @@
            (~and opt-kws
                  (~parse [pat_kw ...] (convert-opt-kws #'opt-kws)))
            (~RestArg pat_rst)
-           pat_out)])))
+           (~Result pat_out _ _))])))
   )
 
 ;; ---------------------------------
@@ -445,7 +457,7 @@
    [⊢ (C→*/internal- (MandArgs- τ_in- ...)
                      (OptKws- (KwArg- (quote-syntax kw) τ_kw-) ...)
                      (NoRestArg-)
-                     τ_out-)
+                     (Result- τ_out- Prop/Top Prop/Top))
       ⇒ :: #%type]]
   [(_ [τ_in:expr* ...] [[kw:keyword τ_kw:expr*] ...] #:rest τ_rst τ_out:expr*) ≫
    [⊢ [τ_in ≫ τ_in- ⇐ :: #%type] ...]
@@ -456,7 +468,7 @@
    [⊢ (C→*/internal- (MandArgs- τ_in- ...)
                      (OptKws- (KwArg- (quote-syntax kw) τ_kw-) ...)
                      (RestArg- τ_rst-)
-                     τ_out-)
+                     (Result- τ_out- Prop/Top Prop/Top))
       ⇒ :: #%type]])
 
 (define-typed-syntax C→
