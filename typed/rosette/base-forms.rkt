@@ -331,7 +331,10 @@
   [(_ f:expr a:expr ... (~seq kw:keyword b:expr) ...) ≫
    ;[⊢ f ≫ f-- ⇒ (~and (~C→* [τ_a ...] [[kw* τ_kw*] ...] τ_out) ~!)]
    #:with f-- (expand/ro #'f)
-   #:with (~and (~C→* [τ_a ...] [[kw* τ_kw*] ...] τ_out) ~!)
+   #:with (~and (~C→* [τ_a ...] [[kw* τ_kw*] ...]
+                      τ_out
+                      : #:+ posprop #:- negprop)
+                ~!)
    (typeof #'f--)
    #:with f- (replace-stx-loc #'f-- #'f)
    #:fail-unless (stx-length=? #'[a ...] #'[τ_a ...])
@@ -355,8 +358,12 @@
    (typecheck-fail-msg/multi #'[τ_a ... τ_b ...] #'[τ_a* ... τ_b* ...]
                              #'[a ... b ...])
    #:with [[kw/b- ...] ...] #'[[kw b-] ...]
+   #:do [(define prop-inst (prop-instantiate (stx-map get-arg-obj #'[a ...])))]
    --------
-   [⊢ (ro:#%app f- a- ... kw/b- ... ...) ⇒ τ_out]]
+   [⊢ (ro:#%app f- a- ... kw/b- ... ...)
+      (⇒ : τ_out)
+      (⇒ prop+ #,(syntax-local-introduce (prop-inst #'posprop)))
+      (⇒ prop- #,(syntax-local-introduce (prop-inst #'negprop)))]]
   [(_ f:expr ab:expr ... (~seq kw:keyword c:expr) ...) ≫
    ;[⊢ f ≫ f-- ⇒ (~and (~C→* [τ_a ...] [[kw* τ_kw*] ...] #:rest τ_rst τ_out) ~!)]
    #:with f-- (expand/ro #'f)

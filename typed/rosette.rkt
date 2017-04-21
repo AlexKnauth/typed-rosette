@@ -232,17 +232,26 @@
 ;; specifically, a symbolic non-bool should produce a concrete val
 (define-typed-syntax if
   [(_ e_tst e1 e2) ≫
-   [⊢ [e_tst ≫ e_tst- ⇒ : ty_tst]]
+   [⊢ [e_tst ≫ e_tst-
+             (⇒ : ty_tst)
+             (⇒ prop+ posprop)
+             (⇒ prop- negprop)]]
    #:when (or (concrete? #'ty_tst) ; either concrete
               ; or non-bool symbolic
               ; (not a super-type of CFalse)
               (and (not (typecheck? ((current-type-eval) #'CFalse) #'ty_tst))
                    (not (typecheck? ((current-type-eval) #'(Constant (Term CFalse))) #'ty_tst))))
-   [⊢ [e1 ≫ e1- ⇒ : ty1]]
-   [⊢ [e2 ≫ e2- ⇒ : ty2]]
+   #:with [[posx τ_posx] ...] (prop->env #'posprop)
+   #:with [[negx τ_negx] ...] (prop->env #'negprop)
+   #:do [(println #'[[posx τ_posx] ...])]
+   [[posx ≫ posx- : τ_posx] ... ⊢ [e1 ≫ e1- ⇒ : ty1]]
+   [[negx ≫ negx- : τ_negx] ... ⊢ [e2 ≫ e2- ⇒ : ty2]]
    #:when (and (concrete? #'ty1) (concrete? #'ty2))
    --------
-   [⊢ [_ ≫ (ro:if e_tst- e1- e2-) ⇒ : (CU ty1 ty2)]]]
+   [⊢ [_ ≫ (ro:if e_tst-
+                  (ro:let ([posx- posx] ...) e1-)
+                  (ro:let ([negx- negx] ...) e2-))
+         ⇒ : (CU ty1 ty2)]]]
   [(_ e_tst e1 e2) ≫
    [⊢ [e_tst ≫ e_tst- ⇒ : _]]
    [⊢ [e1 ≫ e1- ⇒ : ty1]]
@@ -250,7 +259,7 @@
    #:with τ_out (type-merge #'ty1 #'ty2)
    --------
    [⊢ [_ ≫ (ro:if e_tst- e1- e2-) ⇒ : τ_out]]])
-   
+
 ;; ---------------------------------
 ;; vector
 

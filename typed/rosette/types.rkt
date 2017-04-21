@@ -18,6 +18,7 @@
                      C→? Ccase->?)
          ;; Propositions for Occurrence typing
          @
+         (for-syntax prop-instantiate get-arg-obj prop->env)
          ;; Parameters
          CParamof ; TODO: symbolic Param not supported yet
          ;; List types
@@ -232,13 +233,23 @@
 
 (define-internal-type-constructor Result) ; #:arity = 3
 (define-internal-type-constructor Prop/And) ; #:arity <= 0
+(define-internal-type-constructor Prop/Or) ; #:arity <= 0
 (define-internal-type-constructor Prop/IndexType) ; #:arity = 2
+(define-internal-type-constructor Prop/ObjType) ; #:arity = 2
 
 (define-syntax-parser Prop/Top [:id #'(Prop/And-)])
+(define-syntax-parser Prop/Bot [:id #'(Prop/Or-)])
 (define-syntax-parser @
   #:datum-literals [:]
   [(_ i:nat : τ:type)
-   #'(Prop/IndexType- 'i τ.norm)])
+   #'(Prop/IndexType- (quote- i) τ.norm)])
+
+(define-internal-type-constructor NoObj) ; #:arity = 0
+(define-internal-type-constructor IdObj) ; #:arity = 1
+
+(define-syntax-parser IdObj
+  [(_ x:id) #`(IdObj- (quote-syntax-
+                       #,(attach #'x 'orig (syntax-local-introduce #'x))))])
 
 (begin-for-syntax
   (begin-for-syntax
@@ -246,6 +257,16 @@
       [pattern (~and :expr (~not [:keyword . _]))]))
   (define-syntax-class expr*
     [pattern (~and :expr (~not [:keyword . _]))])
+
+  (begin-for-syntax
+    (define-splicing-syntax-class result-prop-pat
+      #:datum-literals [:]
+      [pattern (~seq) #:with pat_posprop #'_ #:with pat_negprop #'_]
+      [pattern (~seq : #:+ pat_posprop #:- pat_negprop)]))
+  (define-splicing-syntax-class result-prop
+    #:datum-literals [:]
+    [pattern (~seq) #:with posprop #'Prop/Top #:with negprop #'Prop/Top]
+    [pattern (~seq : #:+ posprop #:- negprop)])
 
   (define-syntax ~C→
     (pattern-expander
@@ -261,22 +282,25 @@
   (define-syntax ~C→*
     (pattern-expander
      (syntax-parser
-       [(_ [pat_in:expr* ...] [pat_kw:expr ...] pat_out:expr*)
+       [(_ [pat_in:expr* ...] [pat_kw:expr ...] pat_out:expr*
+           props:result-prop-pat)
         #:with opt-kws (generate-temporary 'opt-kws)
         #'(~C→*/internal
            (~MandArgs pat_in ...)
            (~and opt-kws
                  (~parse [pat_kw ...] (convert-opt-kws #'opt-kws)))
            (~NoRestArg)
-           (~Result pat_out _ _))]
-       [(_ [pat_in:expr* ...] [pat_kw:expr ...] #:rest pat_rst:expr pat_out:expr*)
+           (~Result pat_out props.pat_posprop props.pat_negprop))]
+       [(_ [pat_in:expr* ...] [pat_kw:expr ...] #:rest pat_rst:expr
+           pat_out:expr*
+           props:result-prop-pat)
         #:with opt-kws (generate-temporary 'opt-kws)
         #'(~C→*/internal
            (~MandArgs pat_in ...)
            (~and opt-kws
                  (~parse [pat_kw ...] (convert-opt-kws #'opt-kws)))
            (~RestArg pat_rst)
-           (~Result pat_out _ _))])))
+           (~Result pat_out props.pat_posprop props.pat_negprop))])))
   )
 
 ;; ---------------------------------
@@ -449,7 +473,8 @@
 ;;             rest ::= τ
 ;;           output ::= τ
 (define-typed-syntax C→*
-  [(_ [τ_in:expr* ...] [[kw:keyword τ_kw:expr*] ...] τ_out:expr*) ≫
+  [(_ [τ_in:expr* ...] [[kw:keyword τ_kw:expr*] ...] τ_out:expr*
+      props:result-prop) ≫
    [⊢ [τ_in ≫ τ_in- ⇐ :: #%type] ...]
    [⊢ [τ_kw ≫ τ_kw- ⇐ :: #%type] ...]
    [⊢ τ_out ≫ τ_out- ⇐ :: #%type]
@@ -457,9 +482,11 @@
    [⊢ (C→*/internal- (MandArgs- τ_in- ...)
                      (OptKws- (KwArg- (quote-syntax kw) τ_kw-) ...)
                      (NoRestArg-)
-                     (Result- τ_out- Prop/Top Prop/Top))
+                     (Result- τ_out- props.posprop props.negprop))
       ⇒ :: #%type]]
-  [(_ [τ_in:expr* ...] [[kw:keyword τ_kw:expr*] ...] #:rest τ_rst τ_out:expr*) ≫
+  [(_ [τ_in:expr* ...] [[kw:keyword τ_kw:expr*] ...] #:rest τ_rst
+      τ_out:expr*
+      props:result-prop) ≫
    [⊢ [τ_in ≫ τ_in- ⇐ :: #%type] ...]
    [⊢ [τ_kw ≫ τ_kw- ⇐ :: #%type] ...]
    [⊢ τ_rst ≫ τ_rst- ⇐ :: #%type]
@@ -468,7 +495,7 @@
    [⊢ (C→*/internal- (MandArgs- τ_in- ...)
                      (OptKws- (KwArg- (quote-syntax kw) τ_kw-) ...)
                      (RestArg- τ_rst-)
-                     (Result- τ_out- Prop/Top Prop/Top))
+                     (Result- τ_out- props.posprop props.negprop))
       ⇒ :: #%type]])
 
 (define-typed-syntax C→
@@ -670,6 +697,56 @@
        (for/fold ([acc (stx-car τs)])
                  ([b (in-list (stx->list (stx-cdr τs)))])
          (type-merge acc b))]))
+  )
+
+;; ---------------------------------------------------------
+
+;; Instantiating Propositions for Occurrence Typing
+
+(begin-for-syntax
+  (define propProp/Top ((current-type-eval) #'Prop/Top))
+
+  ;; prop-instantitate : (Listof ObjStx) -> [PropStx -> PropStx]
+  (define (prop-instantiate arg-objs)
+    (define (inst p)
+      (syntax-parse (if (syntax-e p) p propProp/Top)
+        #:literals [quote-]
+        [(~Prop/And q ...)
+         #`(Prop/And- #,@(stx-map inst #'[q ...]))]
+        [(~Prop/Or q ...)
+         #`(Prop/Or- #,@(stx-map inst #'[q ...]))]
+        [(~Prop/IndexType (quote- i:nat) τ)
+         (syntax-parse (list-ref arg-objs (syntax-e #'i))
+           [(~NoObj) #`Prop/Top]
+           [obj #`(Prop/ObjType- obj τ)])]
+        [(~Prop/ObjType _ _)
+         p]))
+    inst)
+
+  ;; get-arg-obj : Stx -> ObjStx
+  (define (get-arg-obj stx)
+    ((current-type-eval)
+     (syntax-parse stx
+       [x:id #`(IdObj- (quote-syntax-
+                        #,(attach #'x 'orig-id (syntax-local-introduce #'x))))]
+       [_ #'(NoObj-)])))
+
+  ;; prop->env : PropStx -> (Listof (List Id Type))
+  (define (prop->env p)
+    (syntax-parse (if (syntax-e p) p propProp/Top)
+      #:literals [quote-syntax-]
+      [(~Prop/And q ...)
+       (append* (stx-map prop->env #'[q ...]))]
+      [(~Prop/Or q ...)
+       ;; TODO: do something more useful
+       '()]
+      [(~Prop/ObjType o τ)
+       (syntax-parse #'o
+         #:literals [quote-syntax-]
+         [(~NoObj) '()]
+         [(~IdObj (quote-syntax- x:id))
+          (list (list (syntax-local-introduce (detach #'x 'orig-id))
+                      #'τ))])]))
   )
 
 ;; ---------------------------------------------------------
