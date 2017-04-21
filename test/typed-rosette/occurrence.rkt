@@ -21,5 +21,5 @@
 (define (f x)
   (if (natural? x)
       (add1 x)
-      1 #;(unneg x)))
+      (unneg x)))
 

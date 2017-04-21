@@ -249,7 +249,7 @@
 
 (define-syntax-parser IdObj
   [(_ x:id) #`(IdObj- (quote-syntax-
-                       #,(attach #'x 'orig (syntax-local-introduce #'x))))])
+                       #,(attach #'x 'orig-id (syntax-local-introduce #'x))))])
 
 (begin-for-syntax
   (begin-for-syntax
@@ -727,8 +727,11 @@
   (define (get-arg-obj stx)
     ((current-type-eval)
      (syntax-parse stx
-       [x:id #`(IdObj- (quote-syntax-
-                        #,(attach #'x 'orig-id (syntax-local-introduce #'x))))]
+       [x:id #:do [(define x* (detach #'x 'orig-binding))]
+             #:when x*
+             ;; syntax-local-introduce ruins it
+             #`(IdObj- (quote-syntax-
+                        #,(attach x* 'orig-id x*)))]
        [_ #'(NoObj-)])))
 
   ;; prop->env : PropStx -> (Listof (List Id Type))

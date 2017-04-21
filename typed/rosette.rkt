@@ -241,11 +241,14 @@
               ; (not a super-type of CFalse)
               (and (not (typecheck? ((current-type-eval) #'CFalse) #'ty_tst))
                    (not (typecheck? ((current-type-eval) #'(Constant (Term CFalse))) #'ty_tst))))
+   #:do [(define scope
+           (make-syntax-delta-introducer (datum->syntax this-syntax '||) #f))]
    #:with [[posx τ_posx] ...] (prop->env #'posprop)
    #:with [[negx τ_negx] ...] (prop->env #'negprop)
-   #:do [(println #'[[posx τ_posx] ...])]
-   [[posx ≫ posx- : τ_posx] ... ⊢ [e1 ≫ e1- ⇒ : ty1]]
-   [[negx ≫ negx- : τ_negx] ... ⊢ [e2 ≫ e2- ⇒ : ty2]]
+   #:with [posx* ...] (scope #'[posx ...])
+   #:with [negx* ...] (scope #'[negx ...])
+   [[posx* ≫ posx- : τ_posx] ... ⊢ [e1 ≫ e1- ⇒ : ty1]]
+   [[negx* ≫ negx- : τ_negx] ... ⊢ [e2 ≫ e2- ⇒ : ty2]]
    #:when (and (concrete? #'ty1) (concrete? #'ty2))
    --------
    [⊢ [_ ≫ (ro:if e_tst-

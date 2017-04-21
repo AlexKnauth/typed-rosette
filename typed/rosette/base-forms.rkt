@@ -358,7 +358,7 @@
    (typecheck-fail-msg/multi #'[τ_a ... τ_b ...] #'[τ_a* ... τ_b* ...]
                              #'[a ... b ...])
    #:with [[kw/b- ...] ...] #'[[kw b-] ...]
-   #:do [(define prop-inst (prop-instantiate (stx-map get-arg-obj #'[a ...])))]
+   #:do [(define prop-inst (prop-instantiate (stx-map get-arg-obj #'[a- ...])))]
    --------
    [⊢ (ro:#%app f- a- ... kw/b- ... ...)
       (⇒ : τ_out)
