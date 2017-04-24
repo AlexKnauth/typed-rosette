@@ -71,7 +71,8 @@
                      type-merge
                      type-merge*
                      typeCFalse
-                     typeCTrue))
+                     typeCTrue
+                     occurrence-env))
 
 (require (only-in turnstile/examples/stlc+union
            define-named-type-alias prune+sort current-sub?)
@@ -84,6 +85,7 @@
            [U CU*] [~U* ~CU*] [U*? CU*?]
            [case-> Ccase->*] [~case-> ~Ccase->] [case->? Ccase->?]
            [→ C→/normal] [~→ ~C→/normal] [→? C→/normal?]
+           [~PosInt ~CPosInt] [~Zero ~CZero] [~NegInt ~CNegInt]
            [~True ~CTrue] [~False ~CFalse]
            [~String ~CString]
            [~Unit ~CUnit])
@@ -92,6 +94,8 @@
          (prefix-in ro: rosette)
          (prefix-in ro: rosette/lib/synthax)
          (rename-in "../rosette-util.rkt" [bitvector? lifted-bitvector?]))
+
+(require (for-syntax syntax/id-table))
 
 ;; ---------------------------------
 ;; Concrete and Symbolic union types
@@ -374,6 +378,7 @@
            (stx-andmap type-solvable? #'[τ_in ... τ_out])]
           [_ #false])))
 
+  (define typeCNothing ((current-type-eval) #'CNothing))
   (define typeCFalse ((current-type-eval) #'CFalse))
   (define typeCTrue ((current-type-eval) #'CTrue))
   (define typeCBool ((current-type-eval) #'CBool))
@@ -731,25 +736,84 @@
              #:when x*
              ;; syntax-local-introduce ruins it
              #`(IdObj- (quote-syntax-
-                        #,(attach x* 'orig-id x*)))]
+                        #,(attach
+                           (attach x* 'orig-id x*)
+                           'orig-type (typeof #'x))))]
        [_ #'(NoObj-)])))
 
-  ;; prop->env : PropStx -> (Listof (List Id Type))
+  ;; prop->env : PropStx -> (Maybe (Listof (List Id Type)))
   (define (prop->env p)
+    (define env
+      (prop->env/acc p (make-immutable-free-id-table)))
+    (and env (free-id-table-map env list)))
+
+  ;; prop->env/acc : PropStx (FreeIdTableof Type) -> (Maybe (FreeIdTableof Type))
+  (define (prop->env/acc p acc)
     (syntax-parse (if (syntax-e p) p propProp/Top)
       #:literals [quote-syntax-]
       [(~Prop/And q ...)
-       (append* (stx-map prop->env #'[q ...]))]
+       (for/fold ([acc acc]) ([q (in-list (stx->list #'[q ...]))])
+         #:break (false? acc)
+         (prop->env/acc q acc))]
+      [(~Prop/Or q)
+       #false]
       [(~Prop/Or q ...)
        ;; TODO: do something more useful
-       '()]
+       acc]
       [(~Prop/ObjType o τ)
        (syntax-parse #'o
          #:literals [quote-syntax-]
-         [(~NoObj) '()]
+         [(~NoObj) acc]
          [(~IdObj (quote-syntax- x:id))
-          (list (list (syntax-local-introduce (detach #'x 'orig-id))
-                      #'τ))])]))
+          (define x* (syntax-local-introduce (detach #'x 'orig-id)))
+          (define τ_orig (free-id-table-ref acc x* (λ () (detach #'x 'orig-type))))
+          (define τ_new (refine-type τ_orig #'τ))
+          (if (typecheck? τ_new typeCNothing)
+              #false
+              (free-id-table-set acc x* τ_new))])]))
+
+  ;; refine-type : Type Type -> Type
+  (define (refine-type orig new)
+    (cond [(typecheck? new orig) new]
+          [(Un? new)
+           ((current-type-eval)
+            (syntax-parse new
+              [(~CU* n ...)
+               #`(CU #,@(for/list ([n (in-list (stx->list #'[n ...]))])
+                          (refine-type orig n)))]))]
+          [(Un? orig)
+           ((current-type-eval)
+            (syntax-parse orig
+              [(~CU* o ...)
+               #`(CU #,@(for/list ([o (in-list (stx->list #'[o ...]))])
+                          (refine-type o new)))]))]
+          [else
+           (syntax-parse (list orig new)
+             [[~CZero ~CPosInt] ((current-type-eval) #'CNothing)]
+             [[~CZero ~CNegInt] ((current-type-eval) #'CNothing)]
+             [[~CZero ~CString] ((current-type-eval) #'CNothing)]
+             [[~CPosInt ~CZero] ((current-type-eval) #'CNothing)]
+             [[~CPosInt ~CNegInt] ((current-type-eval) #'CNothing)]
+             [[~CPosInt ~CString] ((current-type-eval) #'CNothing)]
+             [[~CNegInt ~CPosInt] ((current-type-eval) #'CNothing)]
+             [[~CNegInt ~CZero] ((current-type-eval) #'CNothing)]
+             [[~CNegInt ~CString] ((current-type-eval) #'CNothing)]
+             [[~CString ~CPosInt] ((current-type-eval) #'CNothing)]
+             [[~CString ~CZero] ((current-type-eval) #'CNothing)]
+             [[~CString ~CNegInt] ((current-type-eval) #'CNothing)]
+             [_
+              (printf "refine-type: dontknowwhattodo\n  orig: ~a\n  new:  ~a\n"
+                      (type->str orig)
+                      (type->str new))
+              orig])]))
+
+  (define-syntax-class occurrence-env
+    #:attributes [[x 1] [τ 1] bottom?]
+    [pattern #false
+             #:attr bottom? #true
+             #:with [[x τ] ...] #'[]]
+    [pattern [[x τ] ...]
+             #:attr bottom? #false])
   )
 
 ;; ---------------------------------------------------------

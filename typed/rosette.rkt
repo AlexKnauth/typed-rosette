@@ -243,18 +243,24 @@
                    (not (typecheck? ((current-type-eval) #'(Constant (Term CFalse))) #'ty_tst))))
    #:do [(define scope
            (make-syntax-delta-introducer (datum->syntax this-syntax '||) #f))]
-   #:with [[posx τ_posx] ...] (prop->env #'posprop)
-   #:with [[negx τ_negx] ...] (prop->env #'negprop)
-   #:with [posx* ...] (scope #'[posx ...])
-   #:with [negx* ...] (scope #'[negx ...])
-   [[posx* ≫ posx- : τ_posx] ... ⊢ [e1 ≫ e1- ⇒ : ty1]]
-   [[negx* ≫ negx- : τ_negx] ... ⊢ [e2 ≫ e2- ⇒ : ty2]]
-   #:when (and (concrete? #'ty1) (concrete? #'ty2))
+   #:with pos:occurrence-env (prop->env #'posprop)
+   #:with neg:occurrence-env (prop->env #'negprop)
+   #:with [posx* ...] (scope #'[pos.x ...])
+   #:with [negx* ...] (scope #'[neg.x ...])
+   [[posx* ≫ posx- : pos.τ] ... ⊢ [#,(if (attribute pos.bottom?) #'(assert #false) #'e1) ≫ e1- ⇒ : ty1]]
+   [[negx* ≫ negx- : neg.τ] ... ⊢ [#,(if (attribute neg.bottom?) #'(assert #false) #'e2) ≫ e2- ⇒ : ty2]]
+   #:with τ_out
+   (cond [(and (attribute pos.bottom?) (attribute neg.bottom?)) #'CNothing]
+         [(attribute pos.bottom?) #'ty2]
+         [(attribute neg.bottom?) #'ty1]
+         [(and (concrete? #'ty1) (concrete? #'ty2)) #'(CU ty1 ty2)]
+         ;; else don't need to merge, but do need U
+         [else #'(U ty1 ty2)])
    --------
    [⊢ [_ ≫ (ro:if e_tst-
-                  (ro:let ([posx- posx] ...) e1-)
-                  (ro:let ([negx- negx] ...) e2-))
-         ⇒ : (CU ty1 ty2)]]]
+                  (ro:let ([posx- pos.x] ...) e1-)
+                  (ro:let ([negx- neg.x] ...) e2-))
+         ⇒ : τ_out]]]
   [(_ e_tst e1 e2) ≫
    [⊢ [e_tst ≫ e_tst- ⇒ : _]]
    [⊢ [e1 ≫ e1- ⇒ : ty1]]
