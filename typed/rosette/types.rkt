@@ -17,7 +17,7 @@
                      ~C→ ~C→* ~Ccase->
                      C→? Ccase->?)
          ;; Propositions for Occurrence typing
-         @
+         @ !@
          (for-syntax prop-instantiate get-arg-obj prop->env)
          ;; Parameters
          CParamof ; TODO: symbolic Param not supported yet
@@ -239,7 +239,9 @@
 (define-internal-type-constructor Prop/And) ; #:arity <= 0
 (define-internal-type-constructor Prop/Or) ; #:arity <= 0
 (define-internal-type-constructor Prop/IndexType) ; #:arity = 2
+(define-internal-type-constructor Prop/IndexNotType) ; #:arity = 2
 (define-internal-type-constructor Prop/ObjType) ; #:arity = 2
+(define-internal-type-constructor Prop/ObjNotType) ; #:arity = 2
 
 (define-syntax-parser Prop/Top [:id #'(Prop/And-)])
 (define-syntax-parser Prop/Bot [:id #'(Prop/Or-)])
@@ -247,6 +249,10 @@
   #:datum-literals [:]
   [(_ i:nat : τ:type)
    #'(Prop/IndexType- (quote- i) τ.norm)])
+(define-syntax-parser !@
+  #:datum-literals [:]
+  [(_ i:nat : τ:type)
+   #'(Prop/IndexNotType- (quote- i) τ.norm)])
 
 (define-internal-type-constructor NoObj) ; #:arity = 0
 (define-internal-type-constructor IdObj) ; #:arity = 1
@@ -724,8 +730,12 @@
          (syntax-parse (list-ref arg-objs (syntax-e #'i))
            [(~NoObj) #`Prop/Top]
            [obj #`(Prop/ObjType- obj τ)])]
-        [(~Prop/ObjType _ _)
-         p]))
+        [(~Prop/IndexNotType (quote- i:nat) τ)
+         (syntax-parse (list-ref arg-objs (syntax-e #'i))
+           [(~NoObj) #`Prop/Top]
+           [obj #`(Prop/ObjNotType- obj τ)])]
+        [(~Prop/ObjType _ _) p]
+        [(~Prop/ObjNotType _ _) p]))
     inst)
 
   ;; get-arg-obj : Stx -> ObjStx
@@ -767,45 +777,68 @@
          [(~IdObj (quote-syntax- x:id))
           (define x* (syntax-local-introduce (detach #'x 'orig-id)))
           (define τ_orig (free-id-table-ref acc x* (λ () (detach #'x 'orig-type))))
-          (define τ_new (refine-type τ_orig #'τ))
+          (define τ_new (type-restrict τ_orig #'τ))
+          (if (typecheck? τ_new typeCNothing)
+              #false
+              (free-id-table-set acc x* τ_new))])]
+      [(~Prop/ObjNotType o τ)
+       (syntax-parse #'o
+         #:literals [quote-syntax-]
+         [(~NoObj) acc]
+         [(~IdObj (quote-syntax- x:id))
+          (define x* (syntax-local-introduce (detach #'x 'orig-id)))
+          (define τ_orig (free-id-table-ref acc x* (λ () (detach #'x 'orig-type))))
+          (define τ_new (type-remove τ_orig #'τ))
           (if (typecheck? τ_new typeCNothing)
               #false
               (free-id-table-set acc x* τ_new))])]))
 
-  ;; refine-type : Type Type -> Type
-  (define (refine-type orig new)
+  ;; type-restrict : Type Type -> Type
+  (define (type-restrict orig new)
     (cond [(typecheck? new orig) new]
           [(Un? new)
            ((current-type-eval)
             (syntax-parse new
               [(~CU* n ...)
                #`(CU #,@(for/list ([n (in-list (stx->list #'[n ...]))])
-                          (refine-type orig n)))]))]
+                          (type-restrict orig n)))]))]
           [(Un? orig)
            ((current-type-eval)
             (syntax-parse orig
               [(~CU* o ...)
                #`(CU #,@(for/list ([o (in-list (stx->list #'[o ...]))])
-                          (refine-type o new)))]))]
+                          (type-restrict o new)))]))]
           [else
            (syntax-parse (list orig new)
-             [[~CZero ~CPosInt] ((current-type-eval) #'CNothing)]
-             [[~CZero ~CNegInt] ((current-type-eval) #'CNothing)]
-             [[~CZero ~CString] ((current-type-eval) #'CNothing)]
-             [[~CPosInt ~CZero] ((current-type-eval) #'CNothing)]
-             [[~CPosInt ~CNegInt] ((current-type-eval) #'CNothing)]
-             [[~CPosInt ~CString] ((current-type-eval) #'CNothing)]
-             [[~CNegInt ~CPosInt] ((current-type-eval) #'CNothing)]
-             [[~CNegInt ~CZero] ((current-type-eval) #'CNothing)]
-             [[~CNegInt ~CString] ((current-type-eval) #'CNothing)]
-             [[~CString ~CPosInt] ((current-type-eval) #'CNothing)]
-             [[~CString ~CZero] ((current-type-eval) #'CNothing)]
-             [[~CString ~CNegInt] ((current-type-eval) #'CNothing)]
+             [[~CZero ~CPosInt] typeCNothing]
+             [[~CZero ~CNegInt] typeCNothing]
+             [[~CZero ~CString] typeCNothing]
+             [[~CPosInt ~CZero] typeCNothing]
+             [[~CPosInt ~CNegInt] typeCNothing]
+             [[~CPosInt ~CString] typeCNothing]
+             [[~CNegInt ~CPosInt] typeCNothing]
+             [[~CNegInt ~CZero] typeCNothing]
+             [[~CNegInt ~CString] typeCNothing]
+             [[~CString ~CPosInt] typeCNothing]
+             [[~CString ~CZero] typeCNothing]
+             [[~CString ~CNegInt] typeCNothing]
              [_
               (printf "refine-type: dontknowwhattodo\n  orig: ~a\n  new:  ~a\n"
                       (type->str orig)
                       (type->str new))
-              orig])]))
+              new])]))
+
+  ;; type-remove : Type Type -> Type
+  (define (type-remove orig new-not)
+    (cond [(typecheck? orig new-not) typeCNothing]
+          [(Un? orig)
+           ((current-type-eval)
+            (syntax-parse orig
+              [(~CU* o ...)
+               #`(CU #,@(for/list ([o (in-list (stx->list #'[o ...]))])
+                          (type-remove o new-not)))]))]
+          [else
+           orig]))
 
   (define-syntax-class occurrence-env
     #:attributes [[x 1] [τ 1] bottom?]

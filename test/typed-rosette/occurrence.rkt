@@ -7,13 +7,13 @@
 
 (define integer?
   (unsafe-assign-type $integer?
-                      : (C→* [(CU CInt CString)] [] CBool
-                             : #:+ (@ 0 : CInt) #:- (@ 0 : CString))))
+                      : (C→* [CAny] [] CBool
+                             : #:+ (@ 0 : CInt) #:- (!@ 0 : CInt))))
 
 (define natural?
   (unsafe-assign-type $exact-nonnegative-integer?
-                      : (C→* [CInt] [] CBool
-                             : #:+ (@ 0 : CNat) #:- (@ 0 : CNegInt))))
+                      : (C→* [CAny] [] CBool
+                             : #:+ (@ 0 : CNat) #:- (!@ 0 : CNat))))
 
 (define add1
   (unsafe-assign-type $add1
@@ -44,6 +44,17 @@
   (if (natural? x)
       (ann x : CZero)
       (unneg x)))
+
+;; ---------------------------------------------------------
+
+;; Unions with Nothings and non-Nothings in them should not
+;; be Nothing!
+
+(typecheck-fail
+ (λ ([x : (CU CNothing CString)])
+   (ann x : CNothing))
+ #:with-msg
+ "expected CNothing, given \\(CU CNothing CString\\)")
 
 ;; ---------------------------------------------------------
 
