@@ -18,6 +18,8 @@
                      C→? Ccase->?)
          ;; Propositions for Occurrence typing
          @ !@
+         Prop/Or
+         Prop/And
          (for-syntax prop-instantiate get-arg-obj prop->env)
          ;; Parameters
          CParamof ; TODO: symbolic Param not supported yet
@@ -253,6 +255,17 @@
   #:datum-literals [:]
   [(_ i:nat : τ:type)
    #'(Prop/IndexNotType- (quote- i) τ.norm)])
+
+(define-syntax-parser Prop/Or
+  [(_ p ...)
+   (if (stx-andmap syntax-e #'[p ...])
+       #'(Prop/Or- p ...)
+       #'Prop/Top)])
+(define-syntax-parser Prop/And
+  [(_ p ...)
+   #:with [p* ...]
+   (stx-filter syntax-e #'[p ...])
+   #'(Prop/And- p* ...)])
 
 (define-internal-type-constructor NoObj) ; #:arity = 0
 (define-internal-type-constructor IdObj) ; #:arity = 1
@@ -768,8 +781,11 @@
       [(~Prop/Or q)
        #false]
       [(~Prop/Or q ...)
-       ;; TODO: do something more useful
-       acc]
+       (for/fold ([sub #false])
+                 ([q (in-list (stx->list #'[q ...]))])
+         (occurrence-env-id-table-or
+          sub
+          (prop->env/acc q acc)))]
       [(~Prop/ObjType o τ)
        (syntax-parse #'o
          #:literals [quote-syntax-]
@@ -839,6 +855,34 @@
                           (type-remove o new-not)))]))]
           [else
            orig]))
+
+  ;; occurrence-env-id-table-or :
+  ;; (Maybe (FreeIdTableof Type)) (Maybe (FreeIdTableof Type)) -> (Maybe (FreeIdTableof Type))
+  ;; Combines two possible occurrence-typing type environments with or.
+  ;; This means we don't know which environment will be true, so the result
+  ;; will only include identifiers that are included in both environments,
+  ;; with the types that are a union of the associated types in both.
+  (define (occurrence-env-id-table-or a b)
+    (cond [(false? a) b]
+          [(false? b) a]
+          [else
+           (for/fold ([a a])
+                     ([(id τ_b) (in-free-id-table b)])
+             (cond
+               [(dict-has-key? a id)
+                (free-id-table-update
+                 a
+                 id
+                 (λ (τ_a) (type-or τ_a τ_b)))]
+               [else
+                (free-id-table-remove a id)]))]))
+
+  ;; type-or : Type Type -> Type
+  (define (type-or a b)
+    (cond [(and (concrete? a) (concrete? b))
+           ((current-type-eval) #`(CU #,a #,b))]
+          [else
+           ((current-type-eval) #`(U #,a #,b))]))
 
   (define-syntax-class occurrence-env
     #:attributes [[x 1] [τ 1] bottom?]

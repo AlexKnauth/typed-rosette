@@ -1164,18 +1164,35 @@
    [⊢ [elast ≫ elast- ⇒ : ty-last]]
    --------
    [⊢ [_ ≫ (ro:and e- ... elast-) ⇒ : #,(type-merge typeCFalse #'ty-last)]]])
+
 (define-typed-syntax or
   [(_) ≫
    --------
-   [⊢ [_ ≫ (ro:or) ⇒ : CFalse]]]
+   [⊢ [_ ≫ (ro:or)
+         (⇒ : CFalse)
+         (⇒ prop+ Prop/Bot)
+         (⇒ prop- Prop/Top)]]]
   [(_ e ...) ≫
-   [⊢ [e ≫ e- ⇐ : Bool] ...]
+   [⊢ [e ≫ e- (⇐ : CBool) (⇒ prop+ p+) (⇒ prop- p-)]
+      ...]
    --------
-   [⊢ [_ ≫ (ro:or e- ...) ⇒ : Bool]]]
+   [⊢ [_ ≫ (ro:or e- ...)
+         (⇒ : CBool)
+         (⇒ prop+ (Prop/Or p+ ...))
+         (⇒ prop- (Prop/And p- ...))]]]
+  [(_ e ...) ≫
+   [⊢ [e ≫ e- (⇐ : Bool) (⇒ prop+ p+) (⇒ prop- p-)]
+      ...]
+   --------
+   [⊢ [_ ≫ (ro:or e- ...)
+         (⇒ : Bool)
+         (⇒ prop+ (Prop/Or p+ ...))
+         (⇒ prop- (Prop/And p- ...))]]]
   [(_ e ...) ≫
    [⊢ [e ≫ e- ⇒ : ty] ...]
    --------
    [⊢ [_ ≫ (ro:or e- ...) ⇒ : #,(type-merge* (cons typeCFalse #'[ty ...]))]]])
+
 (define-typed-syntax nand
   [(_) ≫
    --------

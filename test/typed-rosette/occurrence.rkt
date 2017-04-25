@@ -10,6 +10,11 @@
                       : (C→* [CAny] [] CBool
                              : #:+ (@ 0 : CInt) #:- (!@ 0 : CInt))))
 
+(define string?
+  (unsafe-assign-type $string?
+                      : (C→* [CAny] [] CBool
+                             : #:+ (@ 0 : CString) #:- (!@ 0 : CString))))
+
 (define natural?
   (unsafe-assign-type $exact-nonnegative-integer?
                       : (C→* [CAny] [] CBool
@@ -70,4 +75,24 @@
 (check-type (h 4) : CInt -> 5)
 (check-type (h -4) : CInt -> 4)
 (check-type (h "four") : CString -> "|four|")
+
+;; ---------------------------------------------------------
+
+;; Testing occurrence typing with or
+
+(: f/intstr : (C→ (CU CInt CString) CInt))
+(define (f/intstr x)
+  (if (integer? x)
+      x
+      (string-length x)))
+
+(: f/or : (C→ CAny CInt))
+(define (f/or x)
+  (if (or (integer? x) (string? x))
+      (f/intstr x)
+      0))
+
+(check-type (f/or 5) : CInt -> 5)
+(check-type (f/or "five") : CInt -> 4)
+(check-type (f/or (list 1 2 3 4 5)) : CInt -> 0)
 
