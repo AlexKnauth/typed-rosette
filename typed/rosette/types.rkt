@@ -818,13 +818,47 @@
             (syntax-parse new
               [(~CU* n ...)
                #`(CU #,@(for/list ([n (in-list (stx->list #'[n ...]))])
-                          (type-restrict orig n)))]))]
+                          (type-restrict orig n)))]
+              [(~U* n ...)
+               (define ns*
+                 (for/list ([n (in-list (stx->list #'[n ...]))])
+                   (type-restrict orig n)))
+               (cond
+                 [(and (concrete? orig) (andmap concrete? ns*))
+                  #`(CU #,@ns*)]
+                 [else
+                  #`(U #,@ns*)])]))]
+          [(Term*? new)
+           (syntax-parse new
+             [(~Term* n)
+              (define n* (type-restrict orig #'n))
+              (cond
+                [(concrete? orig) n*]
+                [else ((current-type-eval) #`(Term #,n*))])])]
           [(Un? orig)
            ((current-type-eval)
             (syntax-parse orig
               [(~CU* o ...)
                #`(CU #,@(for/list ([o (in-list (stx->list #'[o ...]))])
-                          (type-restrict o new)))]))]
+                          (type-restrict o new)))]
+              [(~U* o ...)
+               ;; TODO: What does a U type mean, and can we safely reduce
+               ;; cases within U types?
+               (define os*
+                 (for/list ([o (in-list (stx->list #'[o ...]))])
+                   (type-restrict o new)))
+               (cond
+                 [(and (concrete? new) (andmap concrete? os*))
+                  #`(CU #,@os*)]
+                 [else
+                  #`(U #,@os*)])]))]
+          [(Term*? orig)
+           (syntax-parse orig
+             [(~Term* o)
+              (define o* (type-restrict #'o new))
+              (cond
+                [(concrete? new) o*]
+                [else ((current-type-eval) #`(Term #,o*))])])]
           [else
            (syntax-parse (list orig new)
              [[~CZero ~CPosInt] typeCNothing]
@@ -853,7 +887,19 @@
             (syntax-parse orig
               [(~CU* o ...)
                #`(CU #,@(for/list ([o (in-list (stx->list #'[o ...]))])
-                          (type-remove o new-not)))]))]
+                          (type-remove o new-not)))]
+              [(~U* o ...)
+               ;; TODO: What does a U type mean, and can we safely remove
+               ;; from cases of U types?
+               (define os*
+                 (for/list ([o (in-list (stx->list #'[o ...]))])
+                   (type-remove o new-not)))
+               #`(U #,@os*)]))]
+          [(Term*? orig)
+           (syntax-parse orig
+             [(~Term* o)
+              (define o* (type-remove #'o new-not))
+              ((current-type-eval) #`(Term #,o*))])]
           [else
            orig]))
 
