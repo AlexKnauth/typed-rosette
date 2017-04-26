@@ -20,7 +20,8 @@
          @ !@
          Prop/Or
          Prop/And
-         (for-syntax prop-instantiate get-arg-obj prop->env)
+         with-occurrence-prop
+         (for-syntax prop-instantiate get-arg-obj)
          ;; Parameters
          CParamof ; TODO: symbolic Param not supported yet
          ;; List types
@@ -892,6 +893,35 @@
     [pattern [[x τ] ...]
              #:attr bottom? #false])
   )
+
+;; (with-occurrence-env occurrence-env expr)
+(define-typed-syntax with-occurrence-env
+  [(_ #false body:expr) ≫
+   #:with DEAD (syntax/loc #'body
+                 (ro:assert #false "this should be dead code"))
+   --------
+   [⊢ DEAD ⇒ CNothing]]
+  [(_ ([x:id τ:expr] ...) body:expr) ⇐ τ_body ≫
+   #:do [(define scope
+           (make-syntax-delta-introducer (datum->syntax #'body '||) #f))]
+   #:with [x* ...] (scope #'[x ...])
+   [[x* ≫ x- : τ] ... ⊢ body ≫ body- ⇐ τ_body]
+   --------
+   [⊢ (let- ([x- x] ...) body-)]]
+  [(_ ([x:id τ:type] ...) body:expr) ≫
+   #:do [(define scope
+           (make-syntax-delta-introducer (datum->syntax #'body '||) #f))]
+   #:with [x* ...] (scope #'[x ...])
+   [[x* ≫ x- : τ] ... ⊢ body ≫ body- ⇒ τ_body]
+   --------
+   [⊢ (let- ([x- x] ...) body-) ⇒ τ_body]])
+
+;; (with-occurrence-prop prop expr)
+;; The prop must already be expanded
+(define-syntax-parser with-occurrence-prop
+  [(_ prop:expr body:expr)
+   #:with env:occurrence-env (prop->env #'prop)
+   #'(with-occurrence-env env body)])
 
 ;; ---------------------------------------------------------
 
