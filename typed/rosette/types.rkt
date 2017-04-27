@@ -61,6 +61,7 @@
          COutputPort
          CSolution CSolver CPict CRegexp CSymbol
          LiftedPred LiftedPred2 LiftedNumPred LiftedIntPred UnliftedPred
+         LiftedPredFor UnliftedPredFor
          (for-syntax ~CUnit CUnit?
                      ~CString CString?
                      ~CTrue ~CFalse)
@@ -545,6 +546,13 @@
 
 (define-named-type-alias CBVPred LiftedPred)
 (define-named-type-alias BVPred (add-predm (U LiftedPred) lifted-bitvector?))
+
+(define-simple-macro (LiftedPredFor τ:type)
+  (Ccase-> (C→* [CAny] [] CBool : #:+ (@ 0 : τ.norm) #:- (!@ 0 : τ.norm))
+           (C→* [Any] [] Bool : #:+ (@ 0 : τ.norm) #:- (!@ 0 : τ.norm))))
+
+(define-simple-macro (UnliftedPredFor τ:type)
+  (C→* [Any] [] CBool : #:+ (@ 0 : τ.norm) #:- (!@ 0 : τ.norm)))
 
 ;; ---------------------------------------------------------
 

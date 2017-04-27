@@ -861,13 +861,13 @@
                     [not : LiftedPred]
                     [xor : (Ccase-> (C→ CAny CAny CAny)
                                     (C→ Any Any Any))]
-                    [false? : LiftedPred]
+                    [false? : (LiftedPredFor False)]
                     
                     [true : CTrue]
                     [false : CFalse]
                     [real->integer : (C→ Num Int)]
-                    [string? : UnliftedPred]
-                    [number? : LiftedPred]
+                    [string? : (UnliftedPredFor CString)]
+                    [number? : (LiftedPredFor Num)]
                     [positive? : LiftedNumPred]
                     [negative? : LiftedNumPred]
                     [zero? : LiftedNumPred]
@@ -895,44 +895,26 @@
 ;; ---------------------------------
 ;; more built-in ops
 
+(define-simple-macro
+  (define-solvable-type-predicate pred? ro-pred? CType Type)
+  (begin-
+    (provide- pred?)
+    (define-syntax- pred?
+      (make-variable-like-transformer
+       (attach (⊢ (mark-solvablem ro-pred?) : (LiftedPredFor Type))
+               'typefor
+               ((current-type-eval) #'(Term CType)))))))
+
 ;(define-rosette-primop boolean? : (C→ Any Bool))
-(define-typed-syntax boolean?
-  [_:id ≫
-   --------
-   [⊢ (mark-solvablem
-       ro:boolean?)
-      (⇒ : LiftedPred)
-      (⇒ typefor (Term CBool))]]
-  [(_ e) ≫
-   [⊢ e ≫ e- ⇒ ty]
-   --------
-   [⊢ (ro:boolean? e-) ⇒ #,(if (concrete? #'ty) #'CBool #'Bool)]])
+(define-solvable-type-predicate boolean? ro:boolean? CBool Bool)
 
 ;(define-rosette-primop integer? : (C→ Any Bool))
-(define-typed-syntax integer?
-  [_:id ≫
-   --------
-   [⊢ (mark-solvablem
-       ro:integer?)
-      (⇒ : LiftedPred)
-      (⇒ typefor (Term CInt))]]
-  [(_ e) ≫
-   [⊢ e ≫ e- ⇒ ty]
-   --------
-   [⊢ (ro:integer? e-) ⇒ #,(if (concrete? #'ty) #'CBool #'Bool)]])
+(define-solvable-type-predicate integer? ro:integer? CInt Int)
 
 ;(define-rosette-primop real? : (C→ Any Bool))
-(define-typed-syntax real?
-  [_:id ≫
-   --------
-   [⊢ (mark-solvablem
-       ro:real?)
-      (⇒ : LiftedPred)
-      (⇒ typefor (Term CNum))]]
-  [(_ e) ≫
-   [⊢ e ≫ e- ⇒ ty]
-   --------
-   [⊢ (ro:real? e-) ⇒ #,(if (concrete? #'ty) #'CBool #'Bool)]])
+(define-solvable-type-predicate real? ro:real? CNum Num)
+
+
 
 (define-typed-syntax time
   [(_ e) ≫
@@ -1005,7 +987,7 @@
 
 (provide (typed-out [bv : (Ccase-> (C→ CInt CBVPred CBV)
                                    (C→ CInt CPosInt CBV))]
-                    [bv? : LiftedPred]
+                    [bv? : (LiftedPredFor BV)]
                     
                     [bveq : (C→ BV BV Bool)]
                     [bvslt : (C→ BV BV Bool)]
@@ -1213,7 +1195,7 @@
 
 (provide (typed-out [sat? : UnliftedPred]
                     [unsat? : UnliftedPred]
-                    [solution? : UnliftedPred]
+                    [solution? : (UnliftedPredFor CSolution)]
                     [unknown? : UnliftedPred]
                     [sat : (Ccase-> (C→ CSolution)
                                     (C→ (CHashTable Any Any) CSolution))]
@@ -1349,7 +1331,7 @@
 
 ;(define-rosette-primop gen:solver : CSolver)
 (provide (typed-out
-          [solver? : UnliftedPred]
+          [solver? : (UnliftedPredFor CSolver)]
           [solver-assert : (C→ CSolver (CListof Bool) CUnit)]
           [solver-clear : (C→ CSolver CUnit)]
           [solver-minimize : (C→ CSolver (CListof (U Int Num BV)) CUnit)]

@@ -5,27 +5,6 @@
          (only-in typed/rosette/base-forms unsafe-assign-type)
          (prefix-in $ rosette))
 
-(define integer?
-  (unsafe-assign-type $integer?
-                      : (Ccase->
-                         (C→* [CAny] [] CBool
-                              : #:+ (@ 0 : CInt) #:- (!@ 0 : CInt))
-                         (C→* [Any] [] Bool
-                              : #:+ (@ 0 : Int) #:- (!@ 0 : Int)))))
-
-(define boolean?
-  (unsafe-assign-type $boolean?
-                      : (Ccase->
-                         (C→* [CAny] [] CBool
-                              : #:+ (@ 0 : CBool) #:- (!@ 0 : CBool))
-                         (C→* [Any] [] Bool
-                              : #:+ (@ 0 : Bool) #:- (!@ 0 : Bool)))))
-
-(define string?
-  (unsafe-assign-type $string?
-                      : (C→* [CAny] [] CBool
-                             : #:+ (@ 0 : CString) #:- (!@ 0 : CString))))
-
 (define natural?
   (unsafe-assign-type $exact-nonnegative-integer?
                       : (Ccase->
@@ -34,29 +13,24 @@
                          (C→* [Any] [] Bool
                               : #:+ (@ 0 : Nat) #:- (!@ 0 : Nat)))))
 
-(define add1
-  (unsafe-assign-type $add1
-                      : (Ccase-> (C→ CNat CPosInt)
-                                 (C→ Nat PosInt))))
-
 (define unneg
   (unsafe-assign-type $-
                       : (Ccase-> (C→ CNegInt CPosInt)
                                  (C→ NegInt PosInt))))
 
-(: f : (C→ CInt CNat))
+(: f : (C→ CInt CPosInt))
 (define (f x)
   (if (natural? x)
       (add1 x)
       (unneg x)))
 
-(: f/restricted : (C→ CPosInt CNat))
+(: f/restricted : (C→ CPosInt CPosInt))
 (define (f/restricted x)
   (if (natural? x)
       (add1 x)
       (unneg x)))
 
-(: f* : (C→ Int Nat))
+(: f* : (C→ Int PosInt))
 (define (f* x)
   (if (natural? x)
       (add1 x)
