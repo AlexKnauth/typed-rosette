@@ -537,7 +537,7 @@
    --------
    [⊢ (ro:apply f- lst-) ⇒ τ_out]]
   [(_ f:expr lst:expr) ≫
-   [⊢ f ≫ f- ⇒ (~Ccase-> τ_f ...)]
+   [⊢ f ≫ f- ⇒ (~Ccase-> ~! τ_f ...)]
    [⊢ lst ≫ lst- ⇒ τ_lst]
    #:with τ_out
    (for/or ([τ_f (in-list (stx->list #'[τ_f ...]))])
